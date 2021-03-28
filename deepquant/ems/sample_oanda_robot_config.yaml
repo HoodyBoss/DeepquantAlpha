@@ -1,0 +1,215 @@
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+# Portfolio management and trading configuration
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+#
+# Trading position ID format (Magic number (MetaTrader) or Label (cTrader)) is:
+# strategy id (2 digits) + trading robot id (2 digits) + symbol id (2 digits) + trade model id (2 digits)
+# Example: 10401001
+# You can:
+# - close only one position
+# - close all positions of same symbol
+# - close all positions of one trading robot
+# - close all positions of strategy robot
+#
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+run_mode : live           # 'live' for live trade or test mode, 'debug' for debug mode
+
+strategy_name : gw_fx_gold_pepperstone1
+strategy_id : 10            # do not start with '0'
+base_timeframe : M5         # 5 minutes, NOTE: must <= M30, so can be: M1, M2, M3, M4, M5, M15, M30
+enable_check_trade_time : False # True = check trade time, False = not check
+
+#data_path : '/Users/minimalist/Google Drive/DeepQuantProjects/BacktestPython/' #C:\\bot_fx\\data\\gw_fx_gold\\
+data_path : '/usr/src/app/dataset/'
+dataset_location : local    # can be 'local' or 'remote'
+root_module_path : robot_blueprint.gw_fx_gold # root_module_path is root path of trading robot
+# 2 บรรทัดด้านล่างเพิ่มเติมจาก robot_config.yaml แบบเดิม
+data_pipeline_module_path : deepquant.data.common_data_pipeline
+data_pipeline_class : CommonDataPipeline
+
+database_host : influxdb    # use 'localhost' for running without or outside docker, use 'influxdb' for running inside docker
+database_port : 8086        # use '4442' for running without or outside docker, use '8086' for running inside docker
+cache_host    : redis       # Redis host name
+cache_port    : 6379        # Redis port
+
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+# Broker and portfolio configuration
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+market: FX
+broker_id : OANDA1    # This account uses MT4
+broker_server : None
+account_number : xxx
+admin_notify_token : xxx
+
+reserve_fund : 4000           # a savings account or other highly liquid asset set
+min_balance_inbroker : 500    # minimum balance to be used for rebalancing portfolio
+max_balance_inbroker : 5000   # maximum balance to be used for rebalancing portfolio
+
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+# Execution configuration
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+quantity_digits : 2
+backfill_price_count : 5000
+live_price_count : 2
+
+base_bar_interval : 5 # 5 นาที
+run_interval_sleep : 5 # 5 วินาที
+max_missed_execute : 5 # 5 นาที
+
+max_retry : 10 # 10 ครั้ง
+wait_seconds : 1 # 1 วินาที
+wait_order_exec_seconds : 2 # 2 วินาที
+
+pos_size_liquid_limit : 20 # 20 Lot
+# 0% หมายถึง กรณีจะเปิดขนาด Lot ใหญ่มากเกิน pos_size_liquid_limit จะต้องลดขนาดลงกี่ %
+# แล้วทำการแบ่งออร์เดอร์เป็นหลายๆ ออร์เดอร์ แล้วส่ง open order หลายครั้ง แทนการส่งครั้งเดียว
+# ใน OANDA execution ไม่มีใช้ตรงนี้ ที่มีใช้เช่นใน TFEX Execution
+init_reduce_pos_size_percent : 0.0
+
+# 1. นำ token ที่ generate จาก OANDA เก็บลงไฟล์ เช่น ชื่อ tk_oanda.dq แล้ว save ในโฟลเดอร์ที่ปลอดภัย
+# 2. สร้าง environment variable ใน OS ชื่อ TK_OANDA โดยเก็บค่า file path ของ tk_oanda.dq
+#    เก็บค่าทั้ง path และชื่อไฟล์เลย
+base_token_env_var : TK_OANDA
+base_domain : https://api-fxtrade.oanda.com
+
+trade_sessions :
+  - open : 050000
+    close : 040000 # หยุดเทรดช่วงเวลา 04:00 - 05:00
+    last_bar : 035500
+
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+# Trading models configuration
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+#
+# Fields description
+# algorithm can be: RULE_BASE, DNN, XGBOOST
+models:
+    - name : barracuda_gold_4
+      algorithm : RULE_BASE
+      bar_num_require : 30000
+    - name : barracuda_gold_5
+      algorithm : RULE_BASE
+      bar_num_require : 30000
+#    - name : barracuda_gold_ml_1_sig
+#      algorithm : DNN
+#      buildfeat_module : "robot_blueprint.gw_fx_gold.model.buildfeat_barracuda2_sig"
+#      files : ["/barracuda_gold_ml_1_sig.json", "/barracuda_gold_ml_1_sig.h5"] # MUST DEFINE '/' or '\\'
+#      bar_num_require : 30000
+
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+# Symbol configuration
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+#
+# Fields description:
+#
+# id is an identity of symbol
+# name is a symbol name
+# digits is digits after decimal point
+# tick_size is point unit
+# tick_value is point value (not pip value)
+# bar_num_require is a number of minimum bars required by trading model
+symbols :
+    - id : 10
+      name : XAU_USD
+      digits : 2
+      tick_size : 0.01
+      tick_value : 1.0
+      bar_num_require : 30000
+
+
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+# Trading models configuration
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+#
+# Fields description:
+#
+# Mandatory fields are name, id, symbols, timeframe, root_module_path, classes, otherwise are optional fields
+#
+# - name is a trading robot name
+# - id is a trading robot id *DO NOT start with '0'
+# - symbol is a symbol ID that this trading robot will trade
+# - timeframe is a timeframe for this trading robot *each trading robot can trade ONLY one timeframe
+#   timeframe can be: M1, M5, M10, M15, M30, H1, H2, H4, D1, W1
+# - trade_model_id is a trading model ID to be used by this trading robot
+# - trade_model_module is a python file (including full module path) of trading model implementation
+# - trade_model_class is a class name declared in trade_model_module
+# - dataset_router_modulename is a python file (including full module path) of dataset router
+# - model_names
+# - max_position is the maximum positions can be traded at same time
+# - fund_allocate_size is fund size allocated to each trading robot
+# example: 0.5 means 50% of balance
+# if the trading robot trades more than one symbol, fund size will by divided by number of trading symbols
+# and then allocate to each trading symbol equally, this means using averaging
+# or depends on your rule!!!
+#
+# - base_risk is risk in percentage, example: 0.4 = 40%
+# - cal_pos_size_formula
+# 1 = formula 1 -> FIX position size, WILL USE 'limitPosSize'
+# 2 = formula 2 -> posSize = (N * curBalance) / 1000
+# 3 = formula 3 -> posSize = (curBalance * risk) / (stopLossPips * 10)
+# 4 = formula 4 -> posSize = (curBalancePercentage * curBalance) / 1000
+#
+# *curBalancePercentage is defined in trading model or is predicted by trading model
+# - cal_pos_size_formula2 is lot size per 1,000 USD if cal_pos_size_formula = 2
+# - max_pos_size_percent is maximum balance in % to be used for calculating position size
+# - limit_pos_size is maximum lots that can be traded
+
+trading_robots:
+    - name : barracuda_gold_4
+      id : 40
+      symbol : 10
+      timeframe : M5
+      trade_model_id : 10
+      trade_model_module : "model.barracuda4"
+      trade_model_class : "TradeModelFXBarracuda_4"
+      dataset_router_modulename : datapipeline.dataset_router # if 'dataset_location' is 'local', this field must be defined
+      model_names: ["barracuda_gold_4"]
+      max_position : 1
+      fund_allocate_size : 0.5
+      base_risk : 0.02
+      cal_pos_size_formula : 4
+      #cal_pos_size_formula2_size : 0.06
+      max_pos_size_percent : 0.4
+      limit_pos_size : 0.6
+
+    - name : barracuda_gold_5
+      id : 41
+      symbol : 10
+      timeframe : M5
+      trade_model_id : 11
+      trade_model_module : "model.barracuda5"
+      trade_model_class : "TradeModelFXBarracuda_5"
+      dataset_router_modulename : datapipeline.dataset_router # if 'dataset_location' is 'local', this field must be defined
+      model_names: ["barracuda_gold_5"]
+      max_position : 1
+      fund_allocate_size : 0.5
+      base_risk : 0.02
+      cal_pos_size_formula : 4
+      #cal_pos_size_formula2_size : 0.06
+      max_pos_size_percent : 0.4
+      limit_pos_size : 0.6
+
+#    - name : barracuda_gold_2
+#      id : 40
+#      symbol : 10
+#      timeframe : M5
+#      trade_model_id : 10
+#      trade_model_module : "model.barracuda_dnn"
+#      trade_model_class : "TradeModelFXBarracuda_DNN"
+#      dataset_router_modulename : datapipeline.dataset_router # if 'dataset_location' is 'local', this field must be defined
+#      model_names: ["barracuda_gold_ml_1_sig"]
+#      max_position : 1
+#      fund_allocate_size : 0.5
+#      base_risk : 0.02
+#      cal_pos_size_formula : 4 # formula is (cal_pos_size_formula * balance) / 1000
+       #cal_pos_size_formula2_size : 0.06
+#      max_pos_size_percent : 0.4
+#      limit_pos_size : 0.6
+#      reserve_fund : 1000
+#      min_balance_inbroker : 500
+#      max_balance_inbroker : 5000

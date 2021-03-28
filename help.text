@@ -1,0 +1,7 @@
+# add this to virtual environment instruction:
+conda activate <virtual env name>
+pip install -e .
+
+# build wheel command
+python setup.py bdist_wheel
+
