@@ -222,7 +222,7 @@ class TradeMemory():
             self._save_trade_closed_to_db(trade_closed)
 
             # 4) Compute and append bar's trading statistics
-            self._save_trade_closed_to_db(trade_closed)
+            #self._save_trade_closed_to_db(trade_closed)
 
             result = True
         except Exception as e:
@@ -238,39 +238,51 @@ class TradeMemory():
             raise Exception('Save trading closed position(s) to database error. Trading positions are invalid.')
 
         try:
-            measurement_name = 'trade_closed_{}'.format(self.strategy_name)
+            
+            if trade_closed['order_history_info']['details'] :
+                order_detail = trade_closed['order_history_info']['details']
+                for key in order_detail.keys() :
 
-            for pos in trade_closed:
-                # 1) Set time
-                now = datetime_util.utcnow()
-                timestamp = now.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-                d_time = datetime_util.localize_bangkok( timestamp, '%Y-%m-%d %H:%M:%S')
+                    measurement_name = 'closed_trade_pos_{}_{}'.format(self.strategy_name, order_detail[key]['robot_name'])
 
-                # 2) Prepare data
-                data = [{
-                        "measurement": measurement_name,
-                        "tags": {
-                            'label': pos['label']
-                            , 'strategy_name' : self.strategy_name
-                            , 'robot_name': pos['robot_name']
-                            , 'symbol_name' : pos['symbol_name']
-                        },
-                        "fields": {
-                            'datetime': pos['closed_time']
-                            , 'droplet_ip': pos['droplet_ip']
-                            , 'account_no': pos['account_no']
-                            , 'label': pos['label']
-                            , 'balance': pos['balance']
-                            , 'profit': pos['profit']
-                        },
-                        "time": d_time
-                    }]
+                    # 1) Set time
+                    now = datetime_util.utcnow()
+                    timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
+                    d_time = datetime_util.localize_bangkok( timestamp, '%Y-%m-%d %H:%M:%S')
 
-                # 3) Insert / update trading position
-                db_gateway.write_time_series_data(self.database_host
-                                                    , self.database_port
-                                                    , self.robot_config['market'].lower()
-                                                    , data, time_precision='s')
+                    # 2) Prepare data
+                    data = [{
+                            "measurement": measurement_name,
+                            "tags": {
+                                'label': order_detail[key]['label']
+                                , 'strategy_name' : self.strategy_name
+                                , 'robot_name': order_detail[key]['robot_name']
+                                , 'symbol_name' : order_detail[key]['symbol']
+                            },
+                            "fields": {
+                                'datetime': d_time
+                                , 'droplet_ip': trade_closed['order_history_info']['droplet_ip']
+                                , 'account_no': trade_closed['order_history_info']['account_no']
+                                , 'label': order_detail[key]['label']
+                                , 'order_no': order_detail[key]['order_no']
+                                , 'entry_time': order_detail[key]['open_time']
+                                , 'entry_price': order_detail[key]['open_price']
+                                , 'symbol': order_detail[key]['symbol']
+                                , 'trade_type': order_detail[key]['trade_type']
+                                , 'quantity': order_detail[key]['lot']
+                                , 'exit_time': order_detail[key]['close_time']
+                                , 'exit_price': order_detail[key]['close_price']
+                                , 'profit': order_detail[key]['profit']
+                                , 'equity': trade_closed['order_history_info']['equity']
+                            },
+                            "time": d_time
+                        }]
+
+                    # 3) Insert / update trading position
+                    db_gateway.write_time_series_data(self.database_host
+                                                        , self.database_port
+                                                        , self.robot_config['market'].lower()
+                                                        , data, time_precision='s')
 
         except Exception as e:
             raise Exception('Save trading position(s) to database error: {}'.format(e))
