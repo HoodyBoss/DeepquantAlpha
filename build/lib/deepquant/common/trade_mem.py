@@ -234,21 +234,32 @@ class TradeMemory():
         Each element in trading close position is dictionary type.
         Each trading closed position contains: date time, account no, robot name, label (magic number), balance, profit/loss
         """
+        print(trade_closed)
         if trade_closed is None or len(trade_closed) == 0:
-            raise Exception('Save trading closed position(s) to database error. Trading positions are invalid.')
+            raise Exception(trade_closed)
+            #raise Exception('Save trading closed position(s) to database error. Trading positions are invalid.')
 
         try:
             
             if trade_closed['order_history_info']['details'] :
                 order_detail = trade_closed['order_history_info']['details']
                 for key in order_detail.keys() :
+                    robot_name = order_detail[key]['comment']
+                    trade_type = ''
+                    if order_detail[key]['trade_type'] == '0':
+                        trade_type = 'BUY'
+                    else:
+                        trade_type = 'SELL'
 
-                    measurement_name = 'closed_trade_pos_{}_{}'.format(self.strategy_name, order_detail[key]['robot_name'])
+                    if robot_name.find(":") != -1:
+                        robot_name = robot_name.split(':')[0]
+
+                    measurement_name = 'closed_trade_pos_{}_{}'.format(self.strategy_name, robot_name)
 
                     # 1) Set time
                     now = datetime_util.utcnow()
                     timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
-                    d_time = datetime_util.localize_bangkok( timestamp, '%Y-%m-%d %H:%M:%S')
+                    d_time = timestamp#datetime_util.localize_bangkok( timestamp, '%Y-%m-%d %H:%M:%S')
 
                     # 2) Prepare data
                     data = [{
@@ -268,7 +279,7 @@ class TradeMemory():
                                 , 'entry_time': order_detail[key]['open_time']
                                 , 'entry_price': order_detail[key]['open_price']
                                 , 'symbol': order_detail[key]['symbol']
-                                , 'trade_type': order_detail[key]['trade_type']
+                                , 'trade_type': trade_type
                                 , 'quantity': order_detail[key]['lot']
                                 , 'exit_time': order_detail[key]['close_time']
                                 , 'exit_price': order_detail[key]['close_price']
