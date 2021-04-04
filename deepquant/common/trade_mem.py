@@ -226,7 +226,7 @@ class TradeMemory():
 
             result = True
         except Exception as e:
-            raise Exception('Save trading position(s) error: {}'.format(e))
+            raise Exception('Save trading closed position(s) error: {}'.format(e))
         return result
 
     def _save_trade_closed_to_db(self, trade_closed):
@@ -254,7 +254,7 @@ class TradeMemory():
                     if robot_name.find(":") != -1:
                         robot_name = robot_name.split(':')[0]
 
-                    measurement_name = 'closed_trade_pos_{}_{}'.format(self.strategy_name, robot_name)
+                    measurement_name = 'closed_trade_pos_{}'.format(self.strategy_name)
 
                     # 1) Set time
                     now = datetime_util.utcnow()
@@ -267,7 +267,7 @@ class TradeMemory():
                             "tags": {
                                 'label': order_detail[key]['label']
                                 , 'strategy_name' : self.strategy_name
-                                , 'robot_name': order_detail[key]['robot_name']
+                                , 'robot_name': robot_name
                                 , 'symbol_name' : order_detail[key]['symbol']
                             },
                             "fields": {
@@ -296,4 +296,130 @@ class TradeMemory():
                                                         , data, time_precision='s')
 
         except Exception as e:
-            raise Exception('Save trading position(s) to database error: {}'.format(e))
+            raise Exception('Save trading closed position(s) to database error: {}'.format(e))
+
+    def save_account_info(self, account_info, **kwargs):
+        result = False
+        try:
+            # 1) Insert account info into database
+            account_info_rs = self.get_account_info(account_info)
+
+            if not account_info_rs:
+                self._save_account_info_to_db(account_info)
+
+            result = True
+        except Exception as e:
+            raise Exception('Save account info error: {}'.format(e))
+        return result
+
+    def get_account_info(self, account_info, **kwargs):
+        result = {}
+        try:
+            # 1) Get account info existing?
+            measurement_name = 'account_info_{}'.format(self.strategy_name)
+            query_stmt = 'SELECT * FROM "{}" '.format(measurement_name)
+            result = db_gateway.query(self.database_host
+                            , self.database_port
+                            , self.robot_config['market'].lower()
+                            ,query_stmt
+                            )
+
+        except Exception as e:
+            raise Exception('Save account info error: {}'.format(e))
+        return result
+
+    def _save_account_info_to_db(self, account_info):
+        """Save account information to database.
+        Each element in account info is dictionary type.
+        Each account info contains: account no. account name, original balance, etc.
+        """
+
+        if account_info is None or len(account_info) == 0:
+            raise Exception(account_info)
+            #raise Exception('Save trading closed position(s) to database error. Trading positions are invalid.')
+
+        try:
+            
+            if account_info['account_info'] :
+                
+                account_info_detail = account_info['account_info']
+
+                measurement_name = 'account_info_{}'.format(self.strategy_name)
+                # 1) Set time
+                now = datetime_util.utcnow()
+                timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
+                d_time = timestamp#datetime_util.localize_bangkok( timestamp, '%Y-%m-%d %H:%M:%S')
+
+                # 2) Prepare data
+                data = [{
+                        "measurement": measurement_name,
+                        "tags": {
+                            'account_no': account_info_detail['account_no']
+                            , 'strategy_name' : self.strategy_name
+                        },
+                        "fields": {
+                            'datetime': d_time
+                            , 'droplet_ip': account_info_detail['droplet_ip']
+                            , 'account_no': account_info_detail['account_no']
+                            , 'original_balance': account_info_detail['original_balance']
+                        },
+                        "time": d_time
+                    }]
+
+                # 3) Insert / update account info
+                db_gateway.write_time_series_data(self.database_host
+                                                    , self.database_port
+                                                    , self.robot_config['market'].lower()
+                                                    , data, time_precision='s')
+
+        except Exception as e:
+            raise Exception('Save account info to database error: {}'.format(e))
+
+    def _update_equity_state(self, account_info):
+        """Update account equity state database.
+        Each element in info is dictionary type.
+        Each account info contains: account no. account name, original balance, etc.
+        """
+
+        if account_info is None or len(account_info) == 0:
+            raise Exception(account_info)
+            #raise Exception('Save trading closed position(s) to database error. Trading positions are invalid.')
+
+        try:
+            
+            if account_info['account_info'] :
+                
+                account_info_detail = account_info['account_info']
+
+                measurement_name = 'account_info_{}'.format(self.strategy_name)
+                # 1) Set time
+                now = datetime_util.utcnow()
+                timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
+                d_time = timestamp#datetime_util.localize_bangkok( timestamp, '%Y-%m-%d %H:%M:%S')
+
+                # 2) Prepare data
+                data = [{
+                        "measurement": measurement_name,
+                        "tags": {
+                            'account_no': account_info_detail['account_no']
+                            , 'strategy_name' : self.strategy_name
+                        },
+                        "fields": {
+                            'datetime': d_time
+                            , 'droplet_ip': account_info_detail['droplet_ip']
+                            , 'account_no': account_info_detail['account_no']
+                            , 'original_balance': account_info_detail['original_balance']
+                        },
+                        "time": d_time
+                    }]
+
+                # 3) Insert / update account info
+                db_gateway.write_time_series_data(self.database_host
+                                                    , self.database_port
+                                                    , self.robot_config['market'].lower()
+                                                    , data, time_precision='s')
+
+        except Exception as e:
+            raise Exception('Save account info to database error: {}'.format(e))
+
+    
