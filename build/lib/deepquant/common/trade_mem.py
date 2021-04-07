@@ -5,6 +5,8 @@ import deepquant.common.json_util as json_util
 
 import deepquant.data.db_gateway as db_gateway
 
+import os, gc, sys
+
 
 class TradeMemory():
 
@@ -215,29 +217,47 @@ class TradeMemory():
         for pos in trade_positions:
             stats = self._compute_trade_stats(pos)
 
-    def save_trade_closed(self, trade_closed, **kwargs):
+    def save_bot_equity_stat(self, trade_closed, **kwargs):
         result = False
         try:
             # 1) Insert one or more positions into database
-            self._save_trade_closed_to_db(trade_closed)
+            self._save_bot_equity_stat_to_db(trade_closed)
 
             # 4) Compute and append bar's trading statistics
             #self._save_trade_closed_to_db(trade_closed)
 
             result = True
         except Exception as e:
-            raise Exception('Save trading position(s) error: {}'.format(e))
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            raise Exception('save_bot_equity_stat() - Save trading closed position(s) error: {}, line no.{}'.format(e, exc_tb.tb_lineno))
         return result
 
-    def _save_trade_closed_to_db(self, trade_closed):
+    def get_bot_equity_stat(self, measurement_name, bind_params, **kwargs):
+        result = {}
+        try:
+            # 1) Get account info existing?
+            query_stmt = 'SELECT * FROM "{}" WHERE droplet_ip=$droplet_ip AND account_no=$account_no AND robot_name=$robot_name ORDER BY DESC LIMIT 1'.format(measurement_name)
+            result = db_gateway.query(self.database_host
+                            , self.database_port
+                            , self.robot_config['market'].lower()
+                            ,query_stmt,bind_params=bind_params
+                            )
+            #get data from dict by measurement name key
+            #result = result_dict[measurement_name]
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            raise Exception('get_bot_equity_stat() - Get bot equity stat error : {}, line no.{}'.format(e, exc_tb.tb_lineno))
+        return result
+
+    def _save_bot_equity_stat_to_db(self, trade_closed):
         """Save list of trading close position to database.
         Each element in trading close position is dictionary type.
         Each trading closed position contains: date time, account no, robot name, label (magic number), balance, profit/loss
         """
-        print(trade_closed)
+        
         if trade_closed is None or len(trade_closed) == 0:
-            raise Exception(trade_closed)
-            #raise Exception('Save trading closed position(s) to database error. Trading positions are invalid.')
+            #raise Exception(trade_closed)
+            raise Exception('Save trading closed position(s) to database error. Trading closed positions are invalid.')
 
         try:
             
@@ -254,46 +274,66 @@ class TradeMemory():
                     if robot_name.find(":") != -1:
                         robot_name = robot_name.split(':')[0]
 
-                    measurement_name = 'closed_trade_pos_{}_{}'.format(self.strategy_name, robot_name)
+                    measurement_name = 'bot_euqity_stat_{}'.format(self.strategy_name)
 
+                    #prepare bind param to find record exists in database
+                    bind_params = {
+                                    "droplet_ip": trade_closed['order_history_info']['droplet_ip']
+                                    , "account_no": trade_closed['order_history_info']['account_no']
+                                    , "robot_name": robot_name }
+                                    
+                    bot_equity_stat_data = self.get_bot_equity_stat( measurement_name , bind_params)
                     # 1) Set time
                     now = datetime_util.utcnow()
                     timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
-                    d_time = timestamp#datetime_util.localize_bangkok( timestamp, '%Y-%m-%d %H:%M:%S')
+                    d_time = timestamp
 
+                    #equity = summary of profit/loss of order of each bot trade
+                    equity = trade_closed['order_history_info']['equity']
+                    if bot_equity_stat_data is not None:
+                        for point in bot_equity_stat_data:  # 'point' เทียบเท่าคำว่า 'record' ที่ใช้ใน database ทั่วไป
+                            #if found bot equity data exist, just update by time = previous time
+                            d_time = point['datetime']
+                            equity = float(point['equity'])+float(order_detail[key]['profit'])
+                    
                     # 2) Prepare data
                     data = [{
-                            "measurement": measurement_name,
-                            "tags": {
-                                'label': order_detail[key]['label']
-                                , 'strategy_name' : self.strategy_name
-                                , 'robot_name': order_detail[key]['robot_name']
-                                , 'symbol_name' : order_detail[key]['symbol']
-                            },
-                            "fields": {
-                                'datetime': d_time
-                                , 'droplet_ip': trade_closed['order_history_info']['droplet_ip']
-                                , 'account_no': trade_closed['order_history_info']['account_no']
-                                , 'label': order_detail[key]['label']
-                                , 'order_no': order_detail[key]['order_no']
-                                , 'entry_time': order_detail[key]['open_time']
-                                , 'entry_price': order_detail[key]['open_price']
-                                , 'symbol': order_detail[key]['symbol']
-                                , 'trade_type': trade_type
-                                , 'quantity': order_detail[key]['lot']
-                                , 'exit_time': order_detail[key]['close_time']
-                                , 'exit_price': order_detail[key]['close_price']
-                                , 'profit': order_detail[key]['profit']
-                                , 'equity': trade_closed['order_history_info']['equity']
-                            },
-                            "time": d_time
-                        }]
+                                "measurement": measurement_name,
+                                "tags": {
+                                    'droplet_ip' : trade_closed['order_history_info']['droplet_ip']
+                                    , 'account_no' : trade_closed['order_history_info']['account_no']
+                                    , 'strategy_name' : self.strategy_name
+                                    , 'label': order_detail[key]['label']
+                                    , 'robot_name': robot_name
+                                    , 'symbol_name' : order_detail[key]['symbol']
+                                },
+                                "fields": {
+                                    'datetime': timestamp
+                                    , 'droplet_ip': trade_closed['order_history_info']['droplet_ip']
+                                    , 'account_no': trade_closed['order_history_info']['account_no']
+                                    , 'label': order_detail[key]['label']
+                                    , 'order_no': order_detail[key]['order_no']
+                                    , 'entry_time': order_detail[key]['open_time']
+                                    , 'entry_price': order_detail[key]['open_price']
+                                    , 'symbol': order_detail[key]['symbol']
+                                    , 'trade_type': trade_type
+                                    , 'quantity': order_detail[key]['lot']
+                                    , 'exit_time': order_detail[key]['close_time']
+                                    , 'exit_price': order_detail[key]['close_price']
+                                    , 'profit': order_detail[key]['profit']
+                                    , 'equity': str(equity)
+                                },
+                                "time": d_time
+                            }]
 
+                    #account_info_data = self.get_account_info({"account_no": trade_closed['order_history_info']['account_no'] })
+                    #org_balance = account_info_data[ '{}_{}'.format(trade_closed['order_history_info']['account_no'], self.strategy_name) ]
                     # 3) Insert / update trading position
                     db_gateway.write_time_series_data(self.database_host
                                                         , self.database_port
                                                         , self.robot_config['market'].lower()
                                                         , data, time_precision='s')
-
+                    
         except Exception as e:
-            raise Exception('Save trading position(s) to database error: {}'.format(e))
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            raise Exception('_save_bot_equity_stat_to_db() - Save trading closed position(s) to database error: {}, line no.{}'.format(e, exc_tb.tb_lineno))
