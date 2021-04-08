@@ -217,11 +217,11 @@ class TradeMemory():
         for pos in trade_positions:
             stats = self._compute_trade_stats(pos)
 
-    def save_bot_equity_stat(self, trade_closed, **kwargs):
+    def save_history_trade(self, trade_closed, **kwargs):
         result = False
         try:
             # 1) Insert one or more positions into database
-            self._save_bot_equity_stat_to_db(trade_closed)
+            self._save_history_trade_to_db(trade_closed)
 
             # 4) Compute and append bar's trading statistics
             #self._save_trade_closed_to_db(trade_closed)
@@ -249,7 +249,7 @@ class TradeMemory():
             raise Exception('get_bot_equity_stat() - Get bot equity stat error : {}, line no.{}'.format(e, exc_tb.tb_lineno))
         return result
 
-    def _save_bot_equity_stat_to_db(self, trade_closed):
+    def _save_history_trade_to_db(self, trade_closed):
         """Save list of trading close position to database.
         Each element in trading close position is dictionary type.
         Each trading closed position contains: date time, account no, robot name, label (magic number), balance, profit/loss
@@ -309,19 +309,18 @@ class TradeMemory():
                                 },
                                 "fields": {
                                     'datetime': timestamp
-                                    , 'droplet_ip': trade_closed['order_history_info']['droplet_ip']
-                                    , 'account_no': trade_closed['order_history_info']['account_no']
-                                    , 'label': order_detail[key]['label']
                                     , 'order_no': order_detail[key]['order_no']
                                     , 'entry_time': order_detail[key]['open_time']
                                     , 'entry_price': order_detail[key]['open_price']
-                                    , 'symbol': order_detail[key]['symbol']
                                     , 'trade_type': trade_type
                                     , 'quantity': order_detail[key]['lot']
                                     , 'exit_time': order_detail[key]['close_time']
                                     , 'exit_price': order_detail[key]['close_price']
                                     , 'profit': order_detail[key]['profit']
-                                    , 'equity': str(equity)
+                                    , 'swap': order_detail[key]['profit']
+                                    , 'profit_pct': order_detail[key]['profit'] #calculate profit percentage
+                                    , 'equity_begin': trade_closed['order_history_info']['equity']
+                                    , 'equity_end': trade_closed['order_history_info']['equity'] #calcuate 
                                 },
                                 "time": d_time
                             }]
@@ -336,4 +335,21 @@ class TradeMemory():
                     
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            raise Exception('_save_bot_equity_stat_to_db() - Save trading closed position(s) to database error: {}, line no.{}'.format(e, exc_tb.tb_lineno))
+            raise Exception('_save_history_trade_to_db() - Save trading closed position(s) to database error: {}, line no.{}'.format(e, exc_tb.tb_lineno))
+
+    def get_history_trade(self, measurement_name, bind_params, **kwargs):
+        result = {}
+        try:
+            # 1) Get history trade transaction of bot
+            query_stmt = 'SELECT * FROM "{}" WHERE droplet_ip=$droplet_ip AND account_no=$account_no AND robot_name=$robot_name ORDER BY DESC LIMIT 1'.format(measurement_name)
+            result = db_gateway.query(self.database_host
+                            , self.database_port
+                            , self.robot_config['market'].lower()
+                            ,query_stmt,bind_params=bind_params
+                            )
+            #get data from dict by measurement name key
+            #result = result_dict[measurement_name]
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            raise Exception('get_bot_equity_stat() - Get bot equity stat error : {}, line no.{}'.format(e, exc_tb.tb_lineno))
+        return result
